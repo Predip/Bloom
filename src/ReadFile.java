@@ -8,6 +8,8 @@ import java.util.List;
 
 public class ReadFile {
 
+    private int words;
+
     public ReadFile(String filePath) {
         Path path = Paths.get(filePath);
         List<String> contents = null;
@@ -23,6 +25,15 @@ public class ReadFile {
             i++;
             //System.out.println(content);
         }
-        System.out.println("Anzahl wörter: "+ i);
+
+        setWords(i);
+    }
+
+    public int getWords() {
+        return words;
+    }
+
+    public void setWords(int words) {
+        this.words = words;
     }
 }
