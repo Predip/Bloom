@@ -12,6 +12,7 @@ public class BloomFilter {
 
     private int numberOfExpectedElements;
     private double errorProbability;
+    private double newErrorProbability;
     private int filterSize;
     private int numberOfHashFunctions;
     private boolean[] data;
@@ -19,60 +20,45 @@ public class BloomFilter {
     private int[] hashNumber;
 
 
-    public BloomFilter(int expectedElements, double errorProbability) {
+    public BloomFilter(ReadFile file, double errorProbability) {
         //anz. Elemente
-        this.numberOfExpectedElements = expectedElements;
+        this.numberOfExpectedElements = file.getHalfWordsNum();
         // Fehlerwahrscheinlichkeit
         this.errorProbability = errorProbability;
+        //Filtergrösse
         filterSize = calculateFilterSize();
+        //anz. Hashfunktionen
+        numberOfHashFunctions = calculateNumberOfHashFunctions();
+
+        //Filter erstellern
         data = new boolean[filterSize];
         Arrays.fill(data, false);
 
-        numberOfHashFunctions = calculateNumberOfHashFunctions();
+        System.out.println("Anz. Elemente:" + numberOfExpectedElements);
+        System.out.println("Fehlerfunktion: " + errorProbability);
         System.out.println("Filtergrösse: " + filterSize);
         System.out.println("anz. Hashfunktionen: " + numberOfHashFunctions);
+        System.out.println();
 
 
-        String word = "Hallo";
-        generateSeed();
-        generateHash(word);
-        System.out.println(contains(word));
-        if(!contains(word)) add(word);
-        String s = "Zahlen:  ";
-        for (int hash : hashNumber) {
-            s = s + hash + "    ";
-        }
-        System.out.println(s);
+        //Number of wrong suggestion (Falsche Annahme)
+        int nows = useFilter(file, 0);
 
-
-        generateHash(word);
-        System.out.println(contains(word));
-        if(!contains(word)) add(word);
-        s = "Zahlen:  ";
-        for (int hash : hashNumber) {
-            s = s + hash + "    ";
-        }
-        System.out.println(s);
-
-        word = "halo";
-
-        generateHash(word);
-        System.out.println(contains(word));
-        if(!contains(word)) add(word);
-        s = "Zahlen:  ";
-        for (int hash : hashNumber) {
-            s = s + hash + "    ";
-        }
-        System.out.println(s);
+        //zweiter Source
+        ReadFile secondFile = new ReadFile("src/deutsch.txt", 1);
+        nows = useFilter(secondFile, 1);
+        System.out.println("Anzahl false positives: "+nows);
+        System.out.println("Fehlerquote "+calculateErrorProbability(nows, secondFile));
 
     }
+
 
     //Filtergrösse
     private int calculateFilterSize() {
         //m = -((n ln(p))/(ln(2)^2)
         //The java.lang.Math.log() method returns the natural logarithm (base e) of a double value as a parameter.
         //source: https://www.geeksforgeeks.org/java-math-log-method-example/
-        return (int) round((-1) * ((numberOfExpectedElements * log(errorProbability)) / log(2)));
+        return (int) round((-1) * ((numberOfExpectedElements * log(errorProbability)) / Math.pow(log(2), 2)));
     }
 
     //anz. Hasfunktionen
@@ -81,6 +67,22 @@ public class BloomFilter {
         //The java.lang.Math.log() method returns the natural logarithm (base e) of a double value as a parameter.
         //source: https://www.geeksforgeeks.org/java-math-log-method-example/
         return (int) round((filterSize / numberOfExpectedElements) * log(2));
+    }
+
+    private double calculateErrorProbability(int nows, ReadFile file) {
+        // p = ((1- e^((-((m/n)ln(2)))(n/m)))^((m/n)ln(2))
+        /*
+        return Math.pow(
+                (1 - Math.pow(
+                        Math.E,
+                        (-1) * ((filterSize / numberOfExpectedElements) * log(2)) * (numberOfExpectedElements / filterSize))),
+                ((filterSize / numberOfExpectedElements) * log(2)));
+                */
+        //ergibt immer 0, jedoch habe ich die Berechnung von Wikipedia
+
+        //Versuch 2
+        return 1.0/(file.getWordsNum()/nows);
+
     }
 
     public void add(String word) {
@@ -92,10 +94,10 @@ public class BloomFilter {
     public boolean contains(String word) {
         int count = 0;
         for (int hash : hashNumber) {
-            if (data[hash]);
+            if (data[hash]) ;
             else count++;
         }
-        if(count > 0) return false;
+        if (count > 0) return false;
         else return true;
     }
 
@@ -103,7 +105,6 @@ public class BloomFilter {
         seedNumber = new int[numberOfHashFunctions];
         for (int i = 0; i < numberOfHashFunctions; i++) {
             seedNumber[i] = new Random().nextInt();
-            //Hashing.murmur3_128(seed);
         }
     }
 
@@ -111,18 +112,37 @@ public class BloomFilter {
         hashNumber = new int[numberOfHashFunctions];
         for (int i = 1; i <= numberOfHashFunctions; i++) {
             HashFunction hf = Hashing.murmur3_128(seedNumber[i - 1]);
-            //hashNumber[i] = hf.hashString("Hallo", UTF_8).asInt();
             long hashL = hf.hashString(word, UTF_8).asLong();
             int hash1 = (int) hashL;
             int hash2 = (int) (hashL >>> 32);
 
             int combinedHash = hash1 + (i * hash2);
-            // Flip all the bits if it's negative (guaranteed positive number)
+            // Negative Zahlen Positiv "machen"
             if (combinedHash < 0) combinedHash = ~combinedHash;
 
             hashNumber[i - 1] = combinedHash % this.filterSize;
-
         }
+    }
+
+    private int useFilter(ReadFile file, int i) {
+        int count = 0;
+
+        if (i == 0) {
+            generateSeed();
+            for (String word : file.getFirstWordList()) {
+                generateHash(word);
+                if (!contains(word)) add(word);
+                else count++;
+            }
+        } else if (i == 1) {
+            for (String word : file.getSecondWordList()) {
+                generateHash(word);
+                if (!contains(word)) add(word);
+                else count++;
+            }
+        }
+
+        return count;
     }
 
     public int getNumberOfExpectedElements() {
@@ -157,4 +177,11 @@ public class BloomFilter {
         this.numberOfHashFunctions = numberOfHashFunctions;
     }
 
+    public double getNewErrorProbability() {
+        return newErrorProbability;
+    }
+
+    public void setNewErrorProbability(double newErrorProbability) {
+        this.newErrorProbability = newErrorProbability;
+    }
 }

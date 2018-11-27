@@ -57634,7 +57634,7 @@ wordless
 wordlessly
 wordplay
 wordprocessing
-words
+halfWordsNum
 wordsmith
 wordy
 wore
